@@ -64,6 +64,10 @@ from httplib import HTTPConnection, HTTPSConnection
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from getpass import getpass
 from uuid import UUID
+import logging
+
+import requests
+from requests.auth import OAuth1
 
 
 def str_to_uuid(s):
@@ -301,7 +305,9 @@ class Site(object):
             return url
         self.name = name
         self.base_url = values.get('base_url')
+        self.oauth_version = values.get('oauth_version', '2.0')
         self.grant_type = values.get('grant_type', 'authorization_code')
+        self.request_token_url = _full_url(values.get('request_token_url'))
         self.access_token_url = _full_url(values.get('access_token_url'))
         self.authorize_url = _full_url(values.get('authorize_url'))
         self.client_id = values.get('client_id')
@@ -311,6 +317,7 @@ class Site(object):
         self.bearer_transmission = values.get('bearer_transmission', 'query')
         self.default = values.get('default', False)
         self.access_token = None
+        self.access_token_secret = None
 
     def make_request(self, method, url, headers=None, data=None):
         """Makes an HTTP request to the site."""
@@ -413,6 +420,60 @@ class Site(object):
             print '  %s: %s' % (key, value)
         sys.exit(1)
 
+    def request_rfc5849_authorization_code_grant(self):
+        logger = logging.getLogger(__name__)
+        logging.basicConfig(level='DEBUG')
+        
+        queryoauth = OAuth1(self.client_id, self.client_secret)
+
+        redirect_uri = u'http://127.0.0.1:%d/' % settings.values['http_port']
+
+        r = requests.post(
+            self.request_token_url,
+            auth=OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri))
+        
+        logger.debug('{0}'.format(r.request.__dict__))
+        logger.debug('{0}'.format(r.__dict__))
+        
+        if r.status_code != 200:
+            raise RuntimeError('/oauth/request_token response status code: %d' % r.status_code)
+        
+        rdata = dict(urlparse.parse_qsl(r.text))
+
+        params = {
+            'oauth_token': rdata['oauth_token'],
+        }
+        params.update(self.request_token_params)
+        browser_url = '%s?%s' % (
+            self.authorize_url,
+            urllib.urlencode(params)
+        )
+        webbrowser.open(browser_url)
+        server_address = ('127.0.0.1', settings.values['http_port'])
+        httpd = HTTPServer(server_address, AuthorizationHandler)
+        httpd.token_response = None
+        httpd.handle_request()
+        logger.debug('{0}'.format(httpd.token_response))
+        if 'oauth_verifier' in httpd.token_response:
+            r = requests.post(
+                self.access_token_url,
+                { 'oauth_verifier': unicode(httpd.token_response['oauth_verifier']) },
+                auth=OAuth1(self.client_id, self.client_secret, unicode(httpd.token_response['oauth_token']), callback_uri=redirect_uri))
+            logger.debug('{0}'.format(r.request.__dict__))
+            logger.debug('{0}'.format(r.__dict__))
+        
+            rdata = dict(urlparse.parse_qsl(r.text))
+
+            settings.values['rfc5849_token_cache'][self.name] = {}
+            settings.values['rfc5849_token_cache'][self.name]['access_token'] = rdata['oauth_token']
+            settings.values['rfc5849_token_cache'][self.name]['access_token_secret'] = rdata['oauth_token_secret']
+            return
+
+        print 'Could not sign in: grant cancelled'
+        for key, value in httpd.token_response.iteritems():
+            print '  %s: %s' % (key, value)
+        sys.exit(1)
+
     def exchange_code_for_token(self, code, redirect_uri):
         settings.values['token_cache'][self.name] = self.get_access_token({
             'code':         code,
@@ -427,15 +488,25 @@ class Site(object):
             self.request_authorization_code_grant()
         elif self.grant_type == 'client_credentials':
             self.request_client_credentials_grant()
+        elif self.grant_type == 'rfc5849_authorization_code':
+            self.request_rfc5849_authorization_code_grant()
         else:
             fail('Invalid grant configured: %s' % self.grant_type)
 
     def fetch_token_if_necessarys(self):
-        token_cache = settings.values['token_cache']
-        if token_cache.get(self.name) is None:
-            self.request_tokens()
-        self.access_token = token_cache[self.name]
-
+        if self.oauth_version == '2.0':
+            token_cache = settings.values['token_cache']
+            if token_cache.get(self.name) is None:
+                self.request_tokens()
+            self.access_token = token_cache[self.name]
+        elif self.oauth_version == 'rfc5849':
+            token_cache = settings.values['rfc5849_token_cache']
+            if token_cache.get(self.name) is None:
+                self.request_tokens()
+            self.access_token = token_cache[self.name]['access_token']
+            self.access_token_secret = token_cache[self.name]['access_token_secret']
+        else:
+            fail('Invalid OAuth version configured: %s' % self.oauth_version)
 
 def get_site_by_name(name):
     """Finds a site by its name."""
@@ -968,10 +1039,22 @@ def main():
     if site is not None and site.grant_type is not None:
         site.fetch_token_if_necessarys()
     settings.save()
-    invoke_curl(site, settings.values['curl_path'], extra_args, url_arg,
-                dump_args=args.dump_curl_args,
-                dump_response=args.dump_response)
-
+    if site.oauth_version == '2.0':
+        invoke_curl(site, settings.values['curl_path'], extra_args, url_arg,
+                    dump_args=args.dump_curl_args,
+                    dump_response=args.dump_response)
+    elif site.oauth_version == 'rfc5849':
+        r = requests.get(
+            extra_args[url_arg],
+            auth=OAuth1(
+                site.client_id,
+                site.client_secret,
+                site.access_token,
+                site.access_token_secret))
+        logger = logging.getLogger(__name__)
+        logging.basicConfig(level='DEBUG')
+        logger.debug('{0}'.format(r.request.__dict__))
+        logger.debug('{0}'.format(r.__dict__))
 
 if __name__ == '__main__':
     try:
