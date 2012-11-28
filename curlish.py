@@ -421,9 +421,6 @@ class Site(object):
         sys.exit(1)
 
     def request_rfc5849_authorization_code_grant(self):
-        logger = logging.getLogger(__name__)
-        logging.basicConfig(level='DEBUG')
-        
         queryoauth = OAuth1(self.client_id, self.client_secret)
 
         redirect_uri = u'http://127.0.0.1:%d/' % settings.values['http_port']
@@ -996,6 +993,9 @@ def main():
     parser.add_argument('--clear-cookies', action='store_true',
                         help='Deletes all the cookies or cookies that belong '
                              'to one specific site only.')
+    parser.add_argument('--logging-level',
+                        help='Log output with the given logging level, '
+                             'e.g., DEBUG, INFO, etc.')
     parser.add_argument('--dump-curl-args', action='store_true',
                         help='Instead of executing dump the curl command line '
                              'arguments for this call')
@@ -1030,6 +1030,9 @@ def main():
         clear_cookies(args.site)
         return
 
+    if args.logging_level:
+        logging.basicConfig(level=args.logging_level)
+
     # Redirect everything else to curl via the site
     url_arg = find_url_arg(extra_args)
     if url_arg is None:
@@ -1051,10 +1054,10 @@ def main():
                 site.client_secret,
                 site.access_token,
                 site.access_token_secret))
-        logger = logging.getLogger(__name__)
-        logging.basicConfig(level='DEBUG')
         logger.debug('{0}'.format(r.request.__dict__))
         logger.debug('{0}'.format(r.__dict__))
+
+logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     try:
