@@ -1056,6 +1056,7 @@ def main():
                 site.access_token_secret))
         logger.debug('{0}'.format(r.request.__dict__))
         logger.debug('{0}'.format(r.__dict__))
+        sys.stdout.write(r.text)
 
 logger = logging.getLogger(__name__)
 
