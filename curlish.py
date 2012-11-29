@@ -307,6 +307,7 @@ class Site(object):
         self.base_url = values.get('base_url')
         self.oauth_version = values.get('oauth_version', '2.0')
         self.grant_type = values.get('grant_type', 'authorization_code')
+        self.signature_type = values.get('signature_type', 'AUTH_HEADER')
         self.request_token_url = _full_url(values.get('request_token_url'))
         self.access_token_url = _full_url(values.get('access_token_url'))
         self.authorize_url = _full_url(values.get('authorize_url'))
@@ -427,12 +428,14 @@ class Site(object):
 
         r = requests.post(
             self.request_token_url,
-            auth=OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri))
+            auth=OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri,
+                        signature_type=self.signature_type),
+            headers={'Content-Type': 'application/x-www-form-urlencoded'})
         
         logger.debug('{0}'.format(r.request.__dict__))
         logger.debug('{0}'.format(r.__dict__))
         
-        if r.status_code != 200:
+        if r.status_code >= 400:
             raise RuntimeError('/oauth/request_token response status code: %d' % r.status_code)
         
         rdata = dict(urlparse.parse_qsl(r.text))
@@ -455,7 +458,11 @@ class Site(object):
             r = requests.post(
                 self.access_token_url,
                 { 'oauth_verifier': unicode(httpd.token_response['oauth_verifier']) },
-                auth=OAuth1(self.client_id, self.client_secret, unicode(httpd.token_response['oauth_token']), callback_uri=redirect_uri))
+                auth=OAuth1(self.client_id, self.client_secret,
+                            unicode(httpd.token_response['oauth_token']),
+                            unicode(rdata['oauth_token_secret']),
+                            callback_uri=redirect_uri, signature_type=self.signature_type),
+                headers={'Content-Type': 'application/x-www-form-urlencoded'})
             logger.debug('{0}'.format(r.request.__dict__))
             logger.debug('{0}'.format(r.__dict__))
         
@@ -1053,7 +1060,8 @@ def main():
                 site.client_id,
                 site.client_secret,
                 site.access_token,
-                site.access_token_secret))
+                site.access_token_secret,
+                signature_type='QUERY'))
         logger.debug('{0}'.format(r.request.__dict__))
         logger.debug('{0}'.format(r.__dict__))
         sys.stdout.write(r.text)
