@@ -432,8 +432,8 @@ class Site(object):
                         signature_type=self.signature_type),
             headers={'Content-Type': 'application/x-www-form-urlencoded'})
         
-        logger.debug('{0}'.format(r.request.__dict__))
-        logger.debug('{0}'.format(r.__dict__))
+        logger.debug('Request temporary credentials: {0}'.format(r.request.__dict__))
+        logger.debug('Temporary credentials response: {0}'.format(r.__dict__))
         
         if r.status_code >= 400:
             raise RuntimeError('/oauth/request_token response status code: %d' % r.status_code)
@@ -448,6 +448,9 @@ class Site(object):
             self.authorize_url,
             urllib.urlencode(params)
         )
+
+        logger.debug("Confirm the user's authorization via: {0}".format(browser_url))
+
         webbrowser.open(browser_url)
         server_address = ('127.0.0.1', settings.values['http_port'])
         httpd = HTTPServer(server_address, AuthorizationHandler)
@@ -463,8 +466,8 @@ class Site(object):
                             unicode(rdata['oauth_token_secret']),
                             callback_uri=redirect_uri, signature_type=self.signature_type),
                 headers={'Content-Type': 'application/x-www-form-urlencoded'})
-            logger.debug('{0}'.format(r.request.__dict__))
-            logger.debug('{0}'.format(r.__dict__))
+            logger.debug('Request token credentials: {0}'.format(r.request.__dict__))
+            logger.debug('Token credentials response: {0}'.format(r.__dict__))
         
             rdata = dict(urlparse.parse_qsl(r.text))
 
@@ -1054,17 +1057,22 @@ def main():
                     dump_args=args.dump_curl_args,
                     dump_response=args.dump_response)
     elif site.oauth_version == 'rfc5849':
-        r = requests.get(
-            extra_args[url_arg],
-            auth=OAuth1(
-                site.client_id,
-                site.client_secret,
-                site.access_token,
-                site.access_token_secret,
-                signature_type='QUERY'))
-        logger.debug('{0}'.format(r.request.__dict__))
-        logger.debug('{0}'.format(r.__dict__))
-        sys.stdout.write(r.text)
+        oauth = OAuth1(
+            site.client_id,
+            site.client_secret,
+            site.access_token,
+            site.access_token_secret,
+            signature_type='QUERY')
+        (extra_args[url_arg], headers, body) = oauth.client.sign(
+            unicode(extra_args[url_arg]),
+            u'GET',
+            body=None,
+            headers=None,
+            realm=None)
+        logger.debug('Signed request URL: {0}'.format(extra_args[url_arg]))
+        invoke_curl(site, settings.values['curl_path'], extra_args, url_arg,
+                    dump_args=args.dump_curl_args,
+                    dump_response=args.dump_response)
 
 logger = logging.getLogger(__name__)
 
