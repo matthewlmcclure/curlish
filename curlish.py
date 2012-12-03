@@ -1052,11 +1052,7 @@ def main():
     if site is not None and site.grant_type is not None:
         site.fetch_token_if_necessarys()
     settings.save()
-    if site.oauth_version == '2.0':
-        invoke_curl(site, settings.values['curl_path'], extra_args, url_arg,
-                    dump_args=args.dump_curl_args,
-                    dump_response=args.dump_response)
-    elif site.oauth_version == 'rfc5849':
+    if site.oauth_version == 'rfc5849':
         oauth = OAuth1(
             site.client_id,
             site.client_secret,
@@ -1070,9 +1066,9 @@ def main():
             headers=None,
             realm=None)
         logger.debug('Signed request URL: {0}'.format(extra_args[url_arg]))
-        invoke_curl(site, settings.values['curl_path'], extra_args, url_arg,
-                    dump_args=args.dump_curl_args,
-                    dump_response=args.dump_response)
+    invoke_curl(site, settings.values['curl_path'], extra_args, url_arg,
+                dump_args=args.dump_curl_args,
+                dump_response=args.dump_response)
 
 logger = logging.getLogger(__name__)
 
