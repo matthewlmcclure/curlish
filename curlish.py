@@ -235,7 +235,8 @@ class AuthorizationHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.server.token_response = dict((k, v[-1]) for k, v in
             cgi.parse_qs(self.path.split('?')[-1]).iteritems())
-        if 'code' in self.server.token_response:
+        if 'code' in self.server.token_response or \
+           'oauth_verifier' in self.server.token_response:
             title = 'Tokens Received'
             text = 'The tokens were transmitted successfully to curlish.'
         else:
