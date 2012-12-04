@@ -422,17 +422,40 @@ class Site(object):
             print '  %s: %s' % (key, value)
         sys.exit(1)
 
+    def get_rfc5849_request_token(self, params):
+        """Tries to load tokens with the given parameters."""
+        data = params
+        headers = { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' }
+        status, data = self.make_request('POST',
+                                         self.request_token_url, data=data, headers=headers)
+        import pdb; pdb.set_trace()
+
+        if status == 200:
+            return data['access_token']
+        error = data.get('error')
+        if error in ('invalid_grant', 'access_denied'):
+            return None
+        error_msg = data.get('error_description')
+        fail("Couldn't authorize: %s - %s" % (error, error_msg))
+
     def request_rfc5849_authorization_code_grant(self):
-        queryoauth = OAuth1(self.client_id, self.client_secret)
-
         redirect_uri = u'http://127.0.0.1:%d/' % settings.values['http_port']
+        oauth = OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri,
+                       signature_type=self.signature_type)
+        import pdb; pdb.set_trace()
+        (request_token_url, headers, body) = oauth.client.sign(
+            unicode(self.request_token_url),
+            u'POST',
+            body='',
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            realm=None)
 
-        r = requests.post(
-            self.request_token_url,
-            auth=OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri,
-                        signature_type=self.signature_type),
-            headers={'Content-Type': 'application/x-www-form-urlencoded'})
-        
+        import pdb; pdb.set_trace()
+
+        result = self.get_rfc5849_request_token(body)
+
+        import pdb; pdb.set_trace()
+
         logger.debug('Request temporary credentials: {0}'.format(r.request.__dict__))
         logger.debug('Temporary credentials response: {0}'.format(r.__dict__))
         
