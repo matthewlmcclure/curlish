@@ -345,9 +345,10 @@ class Site(object):
         ct = resp.getheader('Content-Type')
         if ct.startswith('application/json') or ct.startswith('text/javascript'):
             resp_data = json.loads(resp.read())
-        elif ct.startswith('text/html'):
-            fail('Invalid response from server: ' + resp.read())
         else:
+            if not ct.startswith('application/x-www-form-urlencoded'):
+                logger.info('Unexpected Content-Type from server: ' + ct + '. Trying to continue anyway.')
+
             resp_data = dict((k, v[-1]) for k, v in
                 cgi.parse_qs(resp.read()).iteritems())
 
@@ -422,10 +423,9 @@ class Site(object):
             print '  %s: %s' % (key, value)
         sys.exit(1)
 
-    def get_rfc5849_request_token(self, params):
+    def get_rfc5849_request_token(self, params, headers):
         """Tries to load tokens with the given parameters."""
         data = params
-        headers = { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' }
         status, data = self.make_request('POST',
                                          self.request_token_url, data=data, headers=headers)
 
@@ -445,10 +445,11 @@ class Site(object):
             unicode(self.request_token_url),
             u'POST',
             body='',
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            headers={'Content-Type': 'application/x-www-form-urlencoded',
+                     'Accept': 'applicaiton/x-www-form-urlencoded'},
             realm=None)
 
-        rdata = self.get_rfc5849_request_token(body)
+        rdata = self.get_rfc5849_request_token(body, headers)
 
         logger.debug('Temporary credentials response: {0}'.format(rdata))
         
