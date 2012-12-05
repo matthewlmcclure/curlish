@@ -339,7 +339,8 @@ class Site(object):
         real_headers = self.extra_headers.copy()
         real_headers.update(headers or ())
 
-        conn.request(method, u.path, data, real_headers)
+        uri = u.path + ('?' + u.query if u.query else '')
+        conn.request(method, uri, data, real_headers)
         resp = conn.getresponse()
 
         ct = resp.getheader('Content-Type')
@@ -428,10 +429,9 @@ class Site(object):
         headers = { 'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8' }
         status, data = self.make_request('POST',
                                          self.request_token_url, data=data, headers=headers)
-        import pdb; pdb.set_trace()
 
-        if status == 200:
-            return data['access_token']
+        if status >= 200 and status < 300:
+            return data
         error = data.get('error')
         if error in ('invalid_grant', 'access_denied'):
             return None
@@ -442,7 +442,6 @@ class Site(object):
         redirect_uri = u'http://127.0.0.1:%d/' % settings.values['http_port']
         oauth = OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri,
                        signature_type=self.signature_type)
-        import pdb; pdb.set_trace()
         (request_token_url, headers, body) = oauth.client.sign(
             unicode(self.request_token_url),
             u'POST',
@@ -450,20 +449,10 @@ class Site(object):
             headers={'Content-Type': 'application/x-www-form-urlencoded'},
             realm=None)
 
-        import pdb; pdb.set_trace()
+        rdata = self.get_rfc5849_request_token(body)
 
-        result = self.get_rfc5849_request_token(body)
-
-        import pdb; pdb.set_trace()
-
-        logger.debug('Request temporary credentials: {0}'.format(r.request.__dict__))
-        logger.debug('Temporary credentials response: {0}'.format(r.__dict__))
+        logger.debug('Temporary credentials response: {0}'.format(rdata))
         
-        if r.status_code >= 400:
-            raise RuntimeError('/oauth/request_token response status code: %d' % r.status_code)
-        
-        rdata = dict(urlparse.parse_qsl(r.text))
-
         params = {
             'oauth_token': rdata['oauth_token'],
         }
