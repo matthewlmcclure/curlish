@@ -471,28 +471,53 @@ class Site(object):
         httpd.handle_request()
         logger.debug('{0}'.format(httpd.token_response))
         if 'oauth_verifier' in httpd.token_response:
-            r = requests.post(
-                self.access_token_url,
-                { 'oauth_verifier': unicode(httpd.token_response['oauth_verifier']) },
-                auth=OAuth1(self.client_id, self.client_secret,
-                            unicode(httpd.token_response['oauth_token']),
-                            unicode(rdata['oauth_token_secret']),
-                            callback_uri=redirect_uri, signature_type=self.signature_type),
-                headers={'Content-Type': 'application/x-www-form-urlencoded'})
-            logger.debug('Request token credentials: {0}'.format(r.request.__dict__))
-            logger.debug('Token credentials response: {0}'.format(r.__dict__))
-        
-            rdata = dict(urlparse.parse_qsl(r.text))
-
-            settings.values['rfc5849_token_cache'][self.name] = {}
-            settings.values['rfc5849_token_cache'][self.name]['access_token'] = rdata['oauth_token']
-            settings.values['rfc5849_token_cache'][self.name]['access_token_secret'] = rdata['oauth_token_secret']
-            return
+            return self.exchange_rfc5849_verifier_for_access_token(
+                { 'oauth_verifier': httpd.token_response['oauth_verifier'] },
+                rdata['oauth_token'],
+                rdata['oauth_token_secret'],
+                redirect_uri)
 
         print 'Could not sign in: grant cancelled'
         for key, value in httpd.token_response.iteritems():
             print '  %s: %s' % (key, value)
         sys.exit(1)
+
+    def exchange_rfc5849_verifier_for_access_token(self, params, request_token,
+                                                   request_token_secret,
+                                                   redirect_uri):
+        settings.values['rfc5849_token_cache'][self.name] = self.get_rfc5849_access_token(
+            params, request_token, request_token_secret, redirect_uri)
+
+    def get_rfc5849_access_token(self, params, request_token,
+                                 request_token_secret, redirect_uri):
+        """Tries to load tokens with the given parameters."""
+        data = params.copy()
+
+        oauth = OAuth1(self.client_id, self.client_secret,
+                       unicode(request_token),
+                       unicode(request_token_secret),
+                       callback_uri=redirect_uri, signature_type=self.signature_type)
+        import pdb; pdb.set_trace()
+        (access_token_url, headers, body) = oauth.client.sign(
+            unicode(self.access_token_url),
+            u'POST',
+            body=data,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            realm=None)
+
+        status, data = self.make_request('POST',
+                                         self.access_token_url, data=body, headers=headers)
+
+        if status >= 200 and status < 300:
+            return {
+                'access_token': unicode(data['oauth_token']),
+                'access_token_secret': unicode(data['oauth_token_secret']),
+            }
+        error = data.get('error')
+        if error in ('invalid_grant', 'access_denied'):
+            return None
+        error_msg = data.get('error_description')
+        fail("Couldn't authorize: %s - %s" % (error, error_msg))
 
     def exchange_code_for_token(self, code, redirect_uri):
         settings.values['token_cache'][self.name] = self.get_access_token({
