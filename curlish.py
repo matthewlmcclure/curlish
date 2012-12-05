@@ -66,8 +66,7 @@ from getpass import getpass
 from uuid import UUID
 import logging
 
-import requests
-from requests.auth import OAuth1
+from oauthlib.oauth1.rfc5849 import Client as OAuth1
 
 
 def str_to_uuid(s):
@@ -442,7 +441,7 @@ class Site(object):
         redirect_uri = u'http://127.0.0.1:%d/' % settings.values['http_port']
         oauth = OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri,
                        signature_type=self.signature_type)
-        (request_token_url, headers, body) = oauth.client.sign(
+        (request_token_url, headers, body) = oauth.sign(
             unicode(self.request_token_url),
             u'POST',
             body='',
@@ -497,8 +496,7 @@ class Site(object):
                        unicode(request_token),
                        unicode(request_token_secret),
                        callback_uri=redirect_uri, signature_type=self.signature_type)
-        import pdb; pdb.set_trace()
-        (access_token_url, headers, body) = oauth.client.sign(
+        (access_token_url, headers, body) = oauth.sign(
             unicode(self.access_token_url),
             u'POST',
             body=data,
@@ -1097,7 +1095,7 @@ def main():
             site.access_token,
             site.access_token_secret,
             signature_type='QUERY')
-        (extra_args[url_arg], headers, body) = oauth.client.sign(
+        (extra_args[url_arg], headers, body) = oauth.sign(
             unicode(extra_args[url_arg]),
             u'GET',
             body=None,
