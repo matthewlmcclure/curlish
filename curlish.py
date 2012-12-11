@@ -224,6 +224,12 @@ def find_url_arg(arguments):
         if arg.startswith(('http:', 'https:')):
             return idx
 
+def find_method_arg(arguments):
+    """Finds the HTTP method argument in acurl argument list."""
+    for idx, arg in enumerate(arguments):
+        if arg == '-X':
+            return idx + 1
+
 
 class AuthorizationHandler(BaseHTTPRequestHandler):
     """Callback handler for the code based authorization"""
@@ -1096,9 +1102,14 @@ def main():
             site.access_token,
             site.access_token_secret,
             signature_type='QUERY')
+        method_arg = find_method_arg(extra_args)
+        if method_arg is None:
+            method = 'GET'
+        else:
+            method = extra_args[method_arg]
         (extra_args[url_arg], headers, body) = oauth.sign(
             unicode(extra_args[url_arg]),
-            u'GET',
+            unicode(method),
             body=None,
             headers=None,
             realm=None)
