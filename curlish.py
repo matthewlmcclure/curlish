@@ -345,18 +345,25 @@ class Site(object):
         real_headers.update(headers or ())
 
         uri = u.path + ('?' + u.query if u.query else '')
+        logger.debug('Request: {0} {1}'.format(method, url))
+        logger.debug('Request headers: {0}'.format(real_headers))
+        logger.debug('Request body: {0}'.format(data))
         conn.request(method, uri, data, real_headers)
         resp = conn.getresponse()
+        resp_body = resp.read()
+        logger.debug('Response status: {0}'.format(resp.status))
+        logger.debug('Response headers: {0}'.format(resp.getheaders()))
+        logger.debug('Response body: {0}'.format(resp_body))
 
         ct = resp.getheader('Content-Type')
         if ct.startswith('application/json') or ct.startswith('text/javascript'):
-            resp_data = json.loads(resp.read())
+            resp_data = json.loads(resp_body)
         else:
             if not ct.startswith('application/x-www-form-urlencoded'):
                 logger.info('Unexpected Content-Type from server: ' + ct + '. Trying to continue anyway.')
 
             resp_data = dict((k, v[-1]) for k, v in
-                cgi.parse_qs(resp.read()).iteritems())
+                             cgi.parse_qs(resp_body).iteritems())
 
         return resp.status, resp_data
 
@@ -452,7 +459,7 @@ class Site(object):
             u'POST',
             body='',
             headers={'Content-Type': 'application/x-www-form-urlencoded',
-                     'Accept': 'applicaiton/x-www-form-urlencoded'},
+                     'Accept': 'application/x-www-form-urlencoded'},
             realm=None)
 
         rdata = self.get_rfc5849_request_token(body, headers)
