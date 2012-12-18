@@ -235,6 +235,10 @@ def find_method_arg(arguments):
         if arg == '-X':
             return idx + 1
 
+# An example test case:
+#
+# python curlish.py -v --logging-level=DEBUG -X POST https://api.twitter.com/1.1/statuses/update.json --data-urlencode 'status=A tweet from Curlish using OAuth 1. https://github.com/fireteam/curlish/pull/10'
+
 def signature_eligible_body(arguments):
     """Collects the body parameters that are eligible for inclusion in
     the signature base string per
