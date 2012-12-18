@@ -66,7 +66,12 @@ from getpass import getpass
 from uuid import UUID
 import logging
 
-from oauthlib.oauth1.rfc5849 import Client as OAuth1
+try:
+    from oauthlib.oauth1.rfc5849 import Client as OAuth1
+except ImportError:
+    class OAuth1(object):
+        def __init__(*args, **kwargs):
+            raise NotImplementedError('RFC 5849 authorization requires oauthlib')
 
 
 def str_to_uuid(s):
