@@ -230,11 +230,25 @@ def find_url_arg(arguments):
             return idx
 
 def find_method_arg(arguments):
-    """Finds the HTTP method argument in acurl argument list."""
+    """Finds the HTTP method argument in a curl argument list."""
     for idx, arg in enumerate(arguments):
         if arg == '-X':
             return idx + 1
 
+def signature_eligible_body(arguments):
+    """Collects the body parameters that are eligible for inclusion in
+    the signature base string per
+    http://tools.ietf.org/html/rfc5849#section-3.4.1.3.1
+
+    """
+    for idx, arg in enumerate(arguments):
+        # TODO: There are a few other curl argument cases I think I
+        # should handle, and curl specifies that the value of a
+        # --data-urlencode parameter is a string of name=value pairs
+        # where the name is already urlencoded and the value is not.
+        if arg == '--data-urlencode':
+            return urllib.quote(arguments[idx+1], safe='=')
+    return None
 
 class AuthorizationHandler(BaseHTTPRequestHandler):
     """Callback handler for the code based authorization"""
@@ -1113,19 +1127,25 @@ def main():
             site.client_secret,
             site.access_token,
             site.access_token_secret,
-            signature_type='QUERY')
+            signature_type=site.signature_type)
         method_arg = find_method_arg(extra_args)
         if method_arg is None:
             method = 'GET'
         else:
             method = extra_args[method_arg]
+        body = signature_eligible_body(extra_args)
+        headers = { u'Content-Type': u'application/x-www-form-urlencoded' } if body else None
         (extra_args[url_arg], headers, body) = oauth.sign(
             unicode(extra_args[url_arg]),
             unicode(method),
-            body=None,
-            headers=None,
+            body=body,
+            headers=headers,
             realm=None)
         logger.debug('Signed request URL: {0}'.format(extra_args[url_arg]))
+        logger.debug('Signed request headers: {0}'.format(headers))
+        logger.debug('Signed request body: {0}'.format(body))
+        for (header_name, header_value) in headers.iteritems():
+            extra_args.extend(('-H', '%s: %s' % (header_name, header_value)))
     invoke_curl(site, settings.values['curl_path'], extra_args, url_arg,
                 dump_args=args.dump_curl_args,
                 dump_response=args.dump_response)
