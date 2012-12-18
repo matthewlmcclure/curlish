@@ -336,6 +336,7 @@ class Site(object):
         self.base_url = values.get('base_url')
         self.oauth_version = values.get('oauth_version', '2.0')
         self.grant_type = values.get('grant_type', 'authorization_code')
+        self.flow_signature_type = values.get('flow_signature_type', 'AUTH_HEADER')
         self.signature_type = values.get('signature_type', 'AUTH_HEADER')
         self.request_token_url = _full_url(values.get('request_token_url'))
         self.access_token_url = _full_url(values.get('access_token_url'))
@@ -476,7 +477,7 @@ class Site(object):
     def request_rfc5849_authorization_code_grant(self):
         redirect_uri = u'http://127.0.0.1:%d/' % settings.values['http_port']
         oauth = OAuth1(self.client_id, self.client_secret, callback_uri=redirect_uri,
-                       signature_type=self.signature_type)
+                       signature_type=self.flow_signature_type)
         (request_token_url, headers, body) = oauth.sign(
             unicode(self.request_token_url),
             u'POST',
@@ -532,7 +533,7 @@ class Site(object):
         oauth = OAuth1(self.client_id, self.client_secret,
                        unicode(request_token),
                        unicode(request_token_secret),
-                       callback_uri=redirect_uri, signature_type=self.signature_type)
+                       callback_uri=redirect_uri, signature_type=self.flow_signature_type)
         (access_token_url, headers, body) = oauth.sign(
             unicode(self.access_token_url),
             u'POST',
